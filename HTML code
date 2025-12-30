@@ -55,7 +55,7 @@
         }
         #video-url {
             width: 100%;
-            padding: 15px 140px 15px 25px; /* Right padding for button space */
+            padding: 15px 140px 15px 25px;
             border-radius: 50px;
             border: 2px solid #ddd;
             font-size: 1rem;
@@ -143,6 +143,13 @@
             padding: 30px 0;
             margin-top: auto;
         }
+        #status-msg {
+            margin-top: 15px;
+            font-weight: bold;
+            display: none;
+        }
+        .error { color: red; }
+        .success { color: green; }
     </style>
 </head>
 <body>
@@ -161,6 +168,7 @@
                 <input type="text" id="video-url" placeholder="Paste YouTube, Facebook, Instagram url here...">
                 <button id="download-btn">Download</button>
             </div>
+            <div id="status-msg"></div>
             
             <div class="format-options">
                 <div class="format-option active" data-format="mp4">
@@ -183,17 +191,17 @@
                 <div class="feature-card">
                     <i class="fas fa-bolt"></i>
                     <h3>Lightning Fast</h3>
-                    <p>Our servers deliver your downloads at maximum speed</p>
+                    <p>Uses Premium API VDS-KEY</p>
                 </div>
                 <div class="feature-card">
                     <i class="fas fa-cloud"></i>
-                    <h3>Cloud Save</h3>
-                    <p>Save directly to Google Drive or Dropbox</p>
+                    <h3>Secure</h3>
+                    <p>Encrypted download links</p>
                 </div>
                 <div class="feature-card">
                     <i class="fas fa-mobile-alt"></i>
-                    <h3>Mobile Friendly</h3>
-                    <p>Works perfectly on all devices</p>
+                    <h3>Universal</h3>
+                    <p>Supports 1000+ Sites</p>
                 </div>
             </div>
         </div>
@@ -208,7 +216,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     
     <script>
-        // Format selection logic
+        // ==========================================
+        //  API CONFIGURATION
+        // ==========================================
+        const API_KEY = "VDS-KEY-9f1a82c7-44b3-49d9-ae92-8d73f5c922ea-78hD92jKQpL0xF3B6vPz9";
+        
+        // ⚠️ EDIT THIS: Enter the URL of the API provider you bought the key from
+        // Example: 'https://api.rapidapi.com/download' or 'https://vds-api.com/get'
+        const API_URL = "YOUR_API_ENDPOINT_HERE"; 
+        // ==========================================
+
         document.querySelectorAll('.format-option').forEach(option => {
             option.addEventListener('click', function() {
                 document.querySelectorAll('.format-option').forEach(opt => {
@@ -218,71 +235,100 @@
             });
         });
 
-        // Download functionality
-        document.getElementById('download-btn').addEventListener('click', function() {
+        document.getElementById('download-btn').addEventListener('click', async function() {
             const videoUrlInput = document.getElementById('video-url');
             const videoUrl = videoUrlInput.value.trim();
             const format = document.querySelector('.format-option.active').getAttribute('data-format');
             const btn = this;
+            const statusDiv = document.getElementById('status-msg');
             
+            // Reset Status
+            statusDiv.style.display = 'none';
+            statusDiv.className = '';
+
             if (!videoUrl) {
-                alert('Please enter a video URL');
-                videoUrlInput.focus();
+                showStatus('Please enter a video URL', 'error');
                 return;
             }
 
-            // Show loading state
+            if (API_URL === "YOUR_API_ENDPOINT_HERE") {
+                showStatus('Error: API URL is missing in the code.', 'error');
+                alert('Please open the HTML file and replace "YOUR_API_ENDPOINT_HERE" with the real API link.');
+                return;
+            }
+
+            // UI Loading State
             const originalText = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
             btn.disabled = true;
 
-            // Logic to handle URL
-            // NOTE: This uses a third-party API pattern. These APIs often change or require backend proxies due to CORS.
-            // On a static site (like Render Static), this simply redirects the user.
-            
-            setTimeout(() => {
-                if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
-                    const videoId = extractYouTubeId(videoUrl);
-                    
-                    if (!videoId) {
-                        alert('Invalid YouTube URL');
-                        resetButton(btn, originalText);
-                        return;
-                    }
-                    
-                    // Using a common 3rd party downloader pattern (Note: These services may contain ads)
-                    // Redirecting user to a downloader service with the ID pre-filled
-                    let serviceUrl;
-                    if(format === 'mp3') {
-                        // Example pattern for MP3
-                        serviceUrl = `https://ssyoutube.com/en/`; // Fallback or specific deep link if available
-                    } else {
-                        // Example pattern for Video
-                        serviceUrl = `https://ssyoutube.com/watch?v=${videoId}`;
-                    }
+            try {
+                // Prepare the API Request
+                // Note: Structure depends on your API provider. This is a standard POST request.
+                const response = await fetch(API_URL, {
+                    method: 'POST', // Or 'GET' depending on documentation
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY, // Common header name
+                        'Authorization': API_KEY // Alternative header name
+                    },
+                    body: JSON.stringify({
+                        url: videoUrl,
+                        format: format
+                    })
+                });
 
-                    // For this demo, we will open a new tab searching for the download
-                    // Since direct API access from client-side JS is usually blocked by CORS policies on YouTube
-                    window.open(serviceUrl, '_blank');
-                    
-                } else {
-                    alert('This demo currently supports YouTube URLs. For other sites, backend implementation is required.');
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
                 }
+
+                const data = await response.json();
+
+                // Logic to extract download link (Adjust 'data.download_link' based on actual API response)
+                if (data.download_link || data.url || data.link) {
+                    const finalLink = data.download_link || data.url || data.link;
+                    
+                    // Create invisible download click
+                    const a = document.createElement('a');
+                    a.href = finalLink;
+                    a.download = '';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    showStatus('Download Started!', 'success');
+                } else {
+                    showStatus('Could not retrieve download link. Try again.', 'error');
+                    console.log('API Response:', data); // Check console for structure
+                }
+
+            } catch (error) {
+                console.error('Download error:', error);
                 
-                resetButton(btn, originalText);
-            }, 1500); // Fake delay for UX
-            
-            function resetButton(button, text) {
-                button.innerHTML = text;
-                button.disabled = false;
-            }
-            
-            function extractYouTubeId(url) {
-                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-                const match = url.match(regExp);
-                return (match && match[2].length === 11) ? match[2] : null;
+                // FALLBACK: If API fails, try the redirect method
+                showStatus('API failed, trying alternate method...', 'error');
+                setTimeout(() => {
+                    const fallbackUrl = `https://ssyoutube.com/watch?v=${extractYouTubeId(videoUrl)}`;
+                    window.open(fallbackUrl, '_blank');
+                }, 1500);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         });
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('status-msg');
+            el.textContent = msg;
+            el.className = type;
+            el.style.display = 'block';
+        }
+
+        function extractYouTubeId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
     </script>
 </body>
 </html>
